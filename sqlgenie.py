@@ -20,6 +20,7 @@ from collections import namedtuple
 import unittest
 import pandas as pd
 import inspect
+import sympy
 
 
 @contextmanager
@@ -68,31 +69,54 @@ class Table(object):
             columns = session.execute(query).keys()
         for i in columns:
             _columns.append(Column(i))
-        return _columns
+        return columns
+
+
+class Cond(object):
+    def __init__(self, condition):
+        self.condition = condition
+    # looks like and cannot be overridden
+    def AND(self):
+        pass
+    def OR(self):
+        pass
+
+
+class Fragment(object):
+    def __init__(self):
+        self.fragment = fragment
+
+
+def interpret(*args):
+    # need to build a parser here
+    return inspect.getsource(args[0])
 
 
 class Statement(object):
+
     def __init__(self):
         self.statement = ""
 
+    @staticmethod
     def SELECT(self, *args):
-        self.statement = self.statement + str(args)
-        return
+        return self
 
+    @staticmethod
     def FROM(self, *args):
-        _add(args)
-        return
+        return self
 
+    @staticmethod
     def WHERE(self, *args):
-        #code = inspect.getsource(*args[0])
-        # then parse and convert it to correct sql
-        pass
+        return self
 
-    def AND(self):
-        pass
+    @staticmethod
+    def AND(self, *args):
+        return self
 
-    def OR(self):
-        pass
+    @staticmethod
+    def OR(self, *args):
+        return self
+
 
 
 class TestSQL(unittest.TestCase):
@@ -116,12 +140,9 @@ class TestSQL(unittest.TestCase):
     def test_usage(self):
         test_table = Table(self.engine, 'test_table')
         with db_table(test_table) as t:
-            s = Statement()
-            # maybe
-            # uses simple classes with operator overloading
-            # sticks to builtin logic - easy reasoning
-            # Statement(engine).SELECT(x, y, z).FROM('test_table').WHERE(z > 7).AND(x == 9)
-        pass
+            statement = interpret(lambda *args: Statement().SELECT(x, y, z))
+            result = statement.execute(engine)
+
 
     def test_where(self):
         # override builtins, create a Column class
