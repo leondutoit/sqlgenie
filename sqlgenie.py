@@ -17,6 +17,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from contextlib import contextmanager
 from collections import namedtuple
+from infix import custom_infix
 import unittest
 import pandas as pd
 import inspect
@@ -67,15 +68,17 @@ class Table(object):
         with session_scope(engine) as session:
             query = "select * from %s limit 1" % self.name
             columns = session.execute(query).keys()
-        for i in columns:
-            _columns.append(Column(i))
         return columns
+
+
+def interpret(*args):
+    # need to build a parser here
+    return inspect.getsource(args[0])
 
 
 class Cond(object):
     def __init__(self, condition):
         self.condition = condition
-    # looks like and cannot be overridden
     def AND(self):
         pass
     def OR(self):
@@ -87,9 +90,9 @@ class Fragment(object):
         self.fragment = fragment
 
 
-def interpret(*args):
-    # need to build a parser here
-    return inspect.getsource(args[0])
+@custom_infix('__rmod__', '__mod__')
+def LIKE(a, b):
+    return
 
 
 class Statement(object):
@@ -117,8 +120,6 @@ class Statement(object):
     def OR(self, *args):
         return self
 
-
-
 class TestSQL(unittest.TestCase):
 
     engine = create_engine('sqlite://')
@@ -131,7 +132,7 @@ class TestSQL(unittest.TestCase):
 
     def test_table_has_correct_columns(self):
         test_table = Table(self.engine, 'test_table')
-        #self.assertEqual(['x', 'y', 'z'], test_table.columns)
+        self.assertEqual(['x', 'y', 'z'], test_table.columns)
         pass
 
     def test_order(self):
@@ -139,23 +140,10 @@ class TestSQL(unittest.TestCase):
 
     def test_usage(self):
         test_table = Table(self.engine, 'test_table')
-        with db_table(test_table) as t:
-            statement = interpret(lambda *args: Statement().SELECT(x, y, z))
-            result = statement.execute(engine)
-
-
-    def test_where(self):
-        # override builtins, create a Column class
-        # s.SELECT(x, y, z).FROM(t).WHERE((x > 7 and y < 9) or z.like('bla'))
-        # the 'and' between the conditions are problematic here:
-        # s.SELECT(x, y, z).FROM(t).WHERE((t.x > 7 and t.y < 9) or t.z <= 5 and t.z.like('%bla'))
-        # s.SELECT(x, y, z).FROM(t).WHERE(lambda x, y: x > 7 and y < 9 and z.like('bla'))
-        # or using https://pypi.python.org/pypi/infix/
-        # s.SELECT(x, y, z).FROM(t).WHERE(x %gt% 7 %and% y %like% '%gre')
-        # or _just_ define %like% that way
-        # or sympy: http://docs.sympy.org/latest/tutorial/intro.html
-        #
-        pass
+        with db_table(test_table):
+            stmt = interpret(lambda *args:
+                Statement().SELECT(x, y, z).FROM(test_table).WHERE(lambda *args: x == 9 and y < 8 or z %LIKE% 'o'))
+            #result = execute_statement(stmt, engine)
 
 if __name__ == '__main__':
     unittest.main()
