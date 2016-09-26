@@ -2,7 +2,7 @@
 
 Write SQL in your python program as if you were really writing SQL. I've always disliked having SQL queries as string literals and sqlalchemy's ORM-based query language is just too much to remember. Plus most of the time SQL is fine.
 
-```
+```python
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlgenie import Table, db_table, session_scope
