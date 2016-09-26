@@ -11,18 +11,28 @@ select x, y from table limit 10;
 select x, y from table order by x desc;
 select x, count(*) from table group by y;
 functions: count, avg, sum ...
+
+Some conceptual ideas:
+
+SQL().SELECT() -> returns a Statement
+Statements have OR, WHERE clauses -> returns ConditionalStatement
+Both
+    Statements and
+    ConditionalStatements
+        have GROUP_BY clauses -> returns GroupedStatement or GroupedConditionalStatement
+All subclasses of Statements have LIMIT clauses -> returns LimitedStatement
+    has no methods
 """
 
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from contextlib import contextmanager
-from collections import namedtuple
+from collections import OrderedDict
 from infix import custom_infix
 import unittest
 import pandas as pd
 import inspect
-import sympy
-
+import re
 
 @contextmanager
 def db_table(table):
@@ -71,23 +81,61 @@ class Table(object):
         return columns
 
 
+def parse_lambda(params):
+    replacements = [
+        ['lambda *args:', ''],
+        ['==', '='],
+        ['%LIKE%', 'LIKE']
+    ]
+    for cond in replacements:
+        params = params.replace(cond[0], cond[1])
+    return params
+
+
+def unbracket(params):
+    return params.replace('(', ' ').replace(')', ' ')
+
+
+def get_params(op, code):
+    if op not in code:
+        return None
+    kw = op + '\((.*?)\)'
+    try:
+        params = re.search(kw, code).group(0)
+        raw_params = unbracket(params)
+        if op == 'WHERE':
+            raw_params = parse_lambda(raw_params)
+    except Exception as e:
+        print e
+    return raw_params
+
+
 def interpret(*args):
-    # need to build a parser here
-    return inspect.getsource(args[0])
+    calls = OrderedDict({
+        'select': 'SELECT',
+        'from': 'FROM',
+        'where': 'WHERE',
+        'group_by': 'GROUP_BY',
+        'limit': 'LIMIT'
+    })
+    sql_structure = {}
+    code = inspect.getsource(args[0])
+    for key, value in calls.iteritems():
+        params = get_params(value, code)
+        if params is None:
+            continue
+        sql_structure[key] = params
+    return sql_structure
 
 
-class Cond(object):
-    def __init__(self, condition):
-        self.condition = condition
-    def AND(self):
-        pass
-    def OR(self):
-        pass
-
-
-class Fragment(object):
-    def __init__(self):
-        self.fragment = fragment
+def build_sql_statement(sql_structure):
+    stmt = ''
+    for key, value in sql_structure:
+        if value == '':
+            continue
+        else:
+            stmt += key + ' ' + value
+    return stmt
 
 
 @custom_infix('__rmod__', '__mod__')
@@ -95,30 +143,20 @@ def LIKE(a, b):
     return
 
 
-class Statement(object):
-
-    def __init__(self):
-        self.statement = ""
-
+class SQL(object):
     @staticmethod
     def SELECT(self, *args):
         return self
-
     @staticmethod
     def FROM(self, *args):
         return self
-
     @staticmethod
     def WHERE(self, *args):
         return self
-
     @staticmethod
-    def AND(self, *args):
+    def LIMIT(self, *args):
         return self
 
-    @staticmethod
-    def OR(self, *args):
-        return self
 
 class TestSQL(unittest.TestCase):
 
@@ -133,7 +171,6 @@ class TestSQL(unittest.TestCase):
     def test_table_has_correct_columns(self):
         test_table = Table(self.engine, 'test_table')
         self.assertEqual(['x', 'y', 'z'], test_table.columns)
-        pass
 
     def test_order(self):
         pass
@@ -141,9 +178,10 @@ class TestSQL(unittest.TestCase):
     def test_usage(self):
         test_table = Table(self.engine, 'test_table')
         with db_table(test_table):
-            stmt = interpret(lambda *args:
-                Statement().SELECT(x, y, z).FROM(test_table).WHERE(lambda *args: x == 9 and y < 8 or z %LIKE% 'o'))
-            #result = execute_statement(stmt, engine)
+            stmt = interpret(lambda *args: SQL().SELECT(x, y, z).FROM(test_table).WHERE(lambda *args: x == 9 and y < 8 or z %LIKE% 'o'))
+            print stmt
+            #with session_scope(engine) as session:
+            #    session.execute(stmt)
 
 if __name__ == '__main__':
     unittest.main()
