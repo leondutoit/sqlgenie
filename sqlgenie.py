@@ -53,7 +53,6 @@ def session_scope(engine):
         yield session
         session.commit()
     except:
-        logging.info("rolling back transaction")
         session.rollback()
         raise
     finally:
@@ -98,7 +97,7 @@ def unbracket(params):
 
 def get_params(op, code):
     if op not in code:
-        return None
+        return ''
     kw = op + '\((.*?)\)'
     try:
         params = re.search(kw, code).group(0)
@@ -111,30 +110,28 @@ def get_params(op, code):
 
 
 def interpret(*args):
-    calls = OrderedDict({
-        'select': 'SELECT',
-        'from': 'FROM',
-        'where': 'WHERE',
-        'group_by': 'GROUP_BY',
-        'limit': 'LIMIT'
-    })
-    sql_structure = {}
+    calls = OrderedDict()
+    calls['select'] = 'SELECT'
+    calls['from'] = 'FROM'
+    calls['where'] = 'WHERE'
+    calls['group_by'] = 'GROUP_BY'
+    calls['limit'] = 'LIMIT'
+    sql_structure = OrderedDict()
     code = inspect.getsource(args[0])
     for key, value in calls.iteritems():
         params = get_params(value, code)
-        if params is None:
-            continue
         sql_structure[key] = params
     return sql_structure
 
 
 def build_sql_statement(sql_structure):
     stmt = ''
-    for key, value in sql_structure:
+    for key, value in sql_structure.iteritems():
         if value == '':
             continue
         else:
-            stmt += key + ' ' + value
+            stmt += value
+    stmt += ';'
     return stmt
 
 
@@ -161,7 +158,7 @@ class SQL(object):
 class TestSQL(unittest.TestCase):
 
     engine = create_engine('sqlite://')
-    df = pd.DataFrame({ 'x': [1, 2], 'y': [3, 4], 'z': [5, 6] })
+    df = pd.DataFrame({ 'x': [1, 2, 1], 'y': [3, 4, 10], 'z': ['o', 'x', 'p'] })
     df.to_sql('test_table', engine, index=False)
 
     def test_create_table(self):
@@ -179,9 +176,10 @@ class TestSQL(unittest.TestCase):
         test_table = Table(self.engine, 'test_table')
         with db_table(test_table):
             stmt = interpret(lambda *args: SQL().SELECT(x, y, z).FROM(test_table).WHERE(lambda *args: x == 9 and y < 8 or z %LIKE% 'o'))
-            print stmt
-            #with session_scope(engine) as session:
-            #    session.execute(stmt)
+            sql = build_sql_statement(stmt)
+            with session_scope(self.engine) as session:
+                res = session.execute(sql)
+                print res.fetchall()
 
 if __name__ == '__main__':
     unittest.main()
