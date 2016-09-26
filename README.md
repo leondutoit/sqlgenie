@@ -5,7 +5,7 @@ Write SQL in your python program as if you were really writing SQL. I've always 
 ```python
 import pandas as pd
 from sqlalchemy import create_engine
-from sqlgenie import Table, db_table, session_scope
+from sqlgenie import *
 
 engine = create_engine('sqlite://')
 df = pd.DataFrame({ 'x': [1, 2, 1], 'y': [3, 4, 10], 'z': ['o', 'x', 'p'] })
