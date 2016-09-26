@@ -16,7 +16,7 @@ with db_table(test_table):
     stmt = interpret(lambda *args:
         SQL().SELECT(x, y, z).FROM(test_table).WHERE(lambda *args: x == 9 and y < 8 or z %LIKE% 'o'))
     sql = build_sql_statement(stmt)
-    with session_scope(self.engine) as session:
+    with session_scope(engine) as session:
         res = session.execute(sql)
         print res.fetchall()
 ```
